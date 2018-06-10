@@ -3,11 +3,11 @@ use reqwest;
 pub struct Client {
     http_client: reqwest::Client,
     base_url: String,
-    chat_id: u32,
+    chat_id: i64,
 }
 
 impl Client {
-    pub fn new(token: &str, chat_id: u32) -> Client {
+    pub fn new(token: &str, chat_id: i64) -> Client {
         Client {
             http_client: reqwest::Client::new(),
             base_url: format!("https://api.telegram.org/bot{}/sendMessage", token),

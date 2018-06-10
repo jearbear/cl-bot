@@ -31,5 +31,5 @@ pub struct CraigslistConfig {
 #[derive(Deserialize, Debug)]
 pub struct TelegramConfig {
     pub token: String,
-    pub chat_id: u32,
+    pub chat_id: i64,
 }

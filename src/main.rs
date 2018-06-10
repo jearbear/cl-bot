@@ -36,7 +36,7 @@ fn main() -> Result<()> {
         )
         .arg(
             Arg::with_name("STORE")
-                .help("The location of the store used to keep track of seen listings. (default: default.db)")
+                .help("The location of the store used to keep track of seen listings (default: default.db)")
                 .long("store")
                 .takes_value(true),
         )
