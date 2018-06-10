@@ -1,0 +1,7 @@
+[craigslist]
+url = 'https://sfbay.craigslist.org/search/sfc/sga?query=snowboard'
+limit = 10
+
+[telegram]
+token = 'bot_key_here'
+chat_id = 12345678

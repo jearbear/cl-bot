@@ -1,0 +1,6 @@
+/target
+**/*.rs.bk
+*.db
+*.toml
+!Cargo.toml
+!example.toml
