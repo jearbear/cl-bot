@@ -1,9 +1,11 @@
 use rusqlite::Connection;
 
+use std::sync::Mutex;
+
 use types::Result;
 
 pub struct Store {
-    conn: Connection,
+    conn: Mutex<Connection>,
 }
 
 impl Store {
@@ -13,12 +15,12 @@ impl Store {
             "CREATE TABLE IF NOT EXISTS listings (id TEXT PRIMARY KEY);",
             &[],
         )?;
-        Ok(Store { conn: conn })
+        Ok(Store { conn: Mutex::new(conn) })
     }
 
     pub fn save(&self, key: &str) -> Result<()> {
-        self.conn
-            .execute("INSERT INTO listings (id) VALUES (?)", &[&key])?;
+        let conn = self.conn.lock().unwrap();
+        conn.execute("INSERT INTO listings (id) VALUES (?)", &[&key])?;
         Ok(())
     }
 }

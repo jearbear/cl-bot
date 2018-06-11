@@ -9,6 +9,7 @@ extern crate serde_derive;
 #[macro_use]
 extern crate nom;
 extern crate clap;
+extern crate num_cpus;
 extern crate rayon;
 extern crate reqwest;
 extern crate rusqlite;
@@ -42,6 +43,10 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(num_cpus::get() * 2)
+        .build_global()?;
+
     let config_path = matches.value_of("CONFIG").unwrap();
     let cfg = Config::from_file(&config_path)?;
 
@@ -55,17 +60,15 @@ fn main() -> Result<()> {
     let resp = http_client.get(&cfg.craigslist.url).send()?;
     let doc = Document::from_read(resp)?;
 
-    let urls: Vec<_> = doc
-        .find(Class("hdrlnk"))
+    let urls: Vec<_> = doc.find(Class("hdrlnk"))
         .filter_map(|tag| tag.attr("href"))
         .collect();
 
-    let listings: Vec<_> = urls
-        .iter()
+    let mut listings: Vec<_> = urls.par_iter()
         .filter(|url| store.save(url).is_ok())
         .filter_map(|url| Listing::from_url(&url, &http_client).ok())
-        .take(cfg.craigslist.limit)
         .collect();
+    listings.truncate(cfg.craigslist.limit);
 
     // Post any new listings to telegram.
 
