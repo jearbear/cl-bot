@@ -15,7 +15,20 @@ impl Store {
             "CREATE TABLE IF NOT EXISTS listings (id TEXT PRIMARY KEY);",
             &[],
         )?;
-        Ok(Store { conn: Mutex::new(conn) })
+        Ok(Store {
+            conn: Mutex::new(conn),
+        })
+    }
+
+    pub fn new_in_memory() -> Result<Store> {
+        let conn = Connection::open_in_memory()?;
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS listings (id TEXT PRIMARY KEY);",
+            &[],
+        )?;
+        Ok(Store {
+            conn: Mutex::new(conn),
+        })
     }
 
     pub fn save(&self, key: &str) -> Result<()> {

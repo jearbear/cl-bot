@@ -23,6 +23,7 @@ use select::predicate::Class;
 
 use config::Config;
 use listing::Listing;
+use store::Store;
 use types::Result;
 
 static INFO: &str = "cl-bot - A handy script to help you keep on top of Craigslist listings";
@@ -37,7 +38,7 @@ fn main() -> Result<()> {
         )
         .arg(
             Arg::with_name("STORE")
-                .help("The location of the store used to keep track of seen listings (default: default.db)")
+                .help("The location of the store used to keep track of seen listings")
                 .long("store")
                 .takes_value(true),
         )
@@ -50,8 +51,10 @@ fn main() -> Result<()> {
     let config_path = matches.value_of("CONFIG").unwrap();
     let cfg = Config::from_file(&config_path)?;
 
-    let store_path = matches.value_of("STORE").unwrap_or("default.db");
-    let store = store::Store::new(store_path)?;
+    let store = match matches.value_of("STORE") {
+        Some(store_path) => Store::new(store_path)?,
+        None => Store::new_in_memory()?,
+    };
 
     let http_client = reqwest::Client::new();
 
