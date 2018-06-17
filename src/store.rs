@@ -31,6 +31,12 @@ impl Store {
         })
     }
 
+    pub fn exists(&self, key: &str) -> bool {
+        let conn = self.conn.lock().unwrap();
+        conn.query_row("SELECT * FROM listings WHERE id = (?)", &[&key], |_| {})
+            .is_ok()
+    }
+
     pub fn save(&self, key: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         conn.execute("INSERT INTO listings (id) VALUES (?)", &[&key])?;

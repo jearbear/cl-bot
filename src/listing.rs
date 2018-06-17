@@ -3,9 +3,10 @@ use std::str::FromStr;
 
 use nom::digit;
 use nom::types::CompleteStr;
-use reqwest::Client;
 use select::document::Document;
 use select::predicate::{Attr, Class, Name};
+
+use std::io::Read;
 
 use telegram;
 use types::Result;
@@ -49,37 +50,37 @@ pub struct Listing {
 }
 
 impl Listing {
-    pub fn from_url(url: &str, http_client: &Client) -> Result<Listing> {
-        let resp = http_client.get(url).send()?;
-        let doc = Document::from_read(resp)?;
+    pub fn from_read<R: Read>(reader: R) -> Result<Listing> {
+        let doc = Document::from_read(reader)?;
 
-        let raw_price = doc
-            .find(Class("price"))
+        let url = doc.find(Attr("rel", "canonical"))
+            .next()
+            .ok_or("url not found")?
+            .attr("href")
+            .ok_or("url not found")?;
+
+        let raw_price = doc.find(Class("price"))
             .next()
             .ok_or("price not found")?
             .text();
         let price = get_price(&raw_price)?;
 
-        let title = doc
-            .find(Attr("id", "titletextonly"))
+        let title = doc.find(Attr("id", "titletextonly"))
             .next()
             .ok_or("name not found")?
             .text();
 
-        let raw_loc = doc
-            .find(Name("small"))
+        let raw_loc = doc.find(Name("small"))
             .next()
             .ok_or("location not found")?
             .text();
         let location = get_loc(&raw_loc)?;
 
         let map = doc.find(Attr("id", "map")).next().ok_or("map not found")?;
-        let lat = map
-            .attr("data-latitude")
+        let lat = map.attr("data-latitude")
             .ok_or("latitude not found")?
             .parse()?;
-        let lon = map
-            .attr("data-longitude")
+        let lon = map.attr("data-longitude")
             .ok_or("longitude not found")?
             .parse()?;
 
@@ -93,22 +94,25 @@ impl Listing {
     }
 
     pub fn post(&self, client: &telegram::Client) -> bool {
-        client.send_message(&format!(
-            "*${price}* - [{title}]({url})\nLocated in *{location}*",
-            price = self.price,
-            title = self.title,
-            url = self.url,
-            location = self.location
-        ))
-    }
-
-    pub fn pprint(&self) -> String {
-        format!(
-            "${price} - {title}\nLocated in {location}\n{url}",
-            price = self.price,
-            title = self.title,
-            location = self.location,
-            url = self.url,
+        client.send_message(
+            &format!(
+                "*${price}* - [{title}]({url})\nLocated in *{location}*",
+                price = self.price,
+                title = self.title,
+                url = self.url,
+                location = self.location
+            ),
+            false,
         )
     }
+
+    // pub fn pprint(&self) -> String {
+    //     format!(
+    //         "${price} - {title}\nLocated in {location}\n{url}",
+    //         price = self.price,
+    //         title = self.title,
+    //         location = self.location,
+    //         url = self.url,
+    //     )
+    // }
 }

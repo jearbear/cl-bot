@@ -9,15 +9,12 @@ extern crate serde_derive;
 #[macro_use]
 extern crate nom;
 extern crate clap;
-extern crate num_cpus;
-extern crate rayon;
 extern crate reqwest;
 extern crate rusqlite;
 extern crate select;
 extern crate toml;
 
 use clap::{App, Arg};
-use rayon::prelude::*;
 use select::document::Document;
 use select::predicate::Class;
 
@@ -44,10 +41,6 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(num_cpus::get() * 2)
-        .build_global()?;
-
     let config_path = matches.value_of("CONFIG").unwrap();
     let cfg = Config::from_file(&config_path)?;
 
@@ -58,35 +51,30 @@ fn main() -> Result<()> {
 
     let http_client = reqwest::Client::new();
 
-    // Scrape the given url for listings, filtering out what's been already seen.
+    // Obtain the listings for the most recent listings.
+    // Filter out what's already been seen.
 
     let resp = http_client.get(&cfg.craigslist.url).send()?;
     let doc = Document::from_read(resp)?;
 
-    let urls: Vec<_> = doc.find(Class("hdrlnk"))
+    let listings: Vec<_> = doc.find(Class("hdrlnk"))
         .filter_map(|tag| tag.attr("href"))
+        .filter(|url| !store.exists(url))
+        .filter_map(|url| http_client.get(url).send().ok())
+        .filter_map(move |reader| Listing::from_read(reader).ok())
         .collect();
 
-    let mut listings: Vec<_> = urls.par_iter()
-        .filter(|url| store.save(url).is_ok())
-        .filter_map(|url| Listing::from_url(&url, &http_client).ok())
-        .collect();
-    listings.truncate(cfg.craigslist.limit);
-
-    // Post any new listings to telegram.
-
-    if listings.is_empty() {
-        println!("No new listings found.");
-        return Ok(());
-    }
+    // Save and post the listings.
 
     let tel_client = telegram::Client::new(&cfg.telegram.token, cfg.telegram.chat_id);
 
-    println!("Found {} new listings:\n", listings.len());
-    listings.par_iter().for_each(|listing| {
-        listing.post(&tel_client);
-        println!("{}\n", listing.pprint());
-    });
+    let num_posted = listings
+        .iter()
+        .filter(|listing| listing.post(&tel_client))
+        .filter_map(|listing| store.save(&listing.url).ok())
+        .count();
+
+    tel_client.send_message(&format!("Found {} listings!", num_posted), true);
 
     Ok(())
 }

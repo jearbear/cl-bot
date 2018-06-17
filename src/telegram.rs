@@ -15,13 +15,17 @@ impl Client {
         }
     }
 
-    pub fn send_message(&self, msg: &str) -> bool {
+    pub fn send_message(&self, msg: &str, notify: bool) -> bool {
         self.http_client
             .post(&self.base_url)
             .form(&[
                 ("chat_id", self.chat_id.to_string().as_str()),
                 ("parse_mode", "Markdown"),
                 ("text", msg),
+                (
+                    "disable_notification",
+                    if notify { "false" } else { "true" },
+                ),
             ])
             .send()
             .is_ok()
