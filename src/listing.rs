@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::str;
 use std::str::FromStr;
 
@@ -49,37 +50,69 @@ pub struct Listing {
 }
 
 impl Listing {
-    pub fn from_url(url: &str, http_client: &Client) -> Result<Listing> {
-        let resp = http_client.get(url).send()?;
-        let doc = Document::from_read(resp)?;
+    pub fn from_read<R: Read>(reader: R) -> Result<Listing> {
+        let doc = Document::from_read(reader)?;
 
-        let raw_price = doc
-            .find(Class("price"))
+        let raw_price = doc.find(Class("price"))
             .next()
             .ok_or("price not found")?
             .text();
         let price = get_price(&raw_price)?;
 
-        let title = doc
-            .find(Attr("id", "titletextonly"))
+        let title = doc.find(Attr("id", "titletextonly"))
             .next()
             .ok_or("name not found")?
             .text();
 
-        let raw_loc = doc
-            .find(Name("small"))
+        let raw_loc = doc.find(Name("small"))
             .next()
             .ok_or("location not found")?
             .text();
         let location = get_loc(&raw_loc)?;
 
         let map = doc.find(Attr("id", "map")).next().ok_or("map not found")?;
-        let lat = map
-            .attr("data-latitude")
+        let lat = map.attr("data-latitude")
             .ok_or("latitude not found")?
             .parse()?;
-        let lon = map
-            .attr("data-longitude")
+        let lon = map.attr("data-longitude")
+            .ok_or("longitude not found")?
+            .parse()?;
+
+        Ok(Listing {
+            url: "".to_string(),
+            price: price,
+            title: title,
+            location: location,
+            geo: (lat, lon),
+        })
+    }
+
+    pub fn from_url(url: &str, http_client: &Client) -> Result<Listing> {
+        let resp = http_client.get(url).send()?;
+        let doc = Document::from_read(resp)?;
+
+        let raw_price = doc.find(Class("price"))
+            .next()
+            .ok_or("price not found")?
+            .text();
+        let price = get_price(&raw_price)?;
+
+        let title = doc.find(Attr("id", "titletextonly"))
+            .next()
+            .ok_or("name not found")?
+            .text();
+
+        let raw_loc = doc.find(Name("small"))
+            .next()
+            .ok_or("location not found")?
+            .text();
+        let location = get_loc(&raw_loc)?;
+
+        let map = doc.find(Attr("id", "map")).next().ok_or("map not found")?;
+        let lat = map.attr("data-latitude")
+            .ok_or("latitude not found")?
+            .parse()?;
+        let lon = map.attr("data-longitude")
             .ok_or("longitude not found")?
             .parse()?;
 

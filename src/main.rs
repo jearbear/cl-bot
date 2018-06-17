@@ -9,6 +9,7 @@ extern crate serde_derive;
 #[macro_use]
 extern crate nom;
 extern crate clap;
+extern crate crossbeam_channel;
 extern crate num_cpus;
 extern crate rayon;
 extern crate reqwest;
@@ -17,9 +18,13 @@ extern crate select;
 extern crate toml;
 
 use clap::{App, Arg};
+use crossbeam_channel as channel;
 use rayon::prelude::*;
 use select::document::Document;
 use select::predicate::Class;
+
+use std::sync::Arc;
+use std::thread;
 
 use config::Config;
 use listing::Listing;
@@ -44,10 +49,6 @@ fn main() -> Result<()> {
         )
         .get_matches();
 
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(num_cpus::get() * 2)
-        .build_global()?;
-
     let config_path = matches.value_of("CONFIG").unwrap();
     let cfg = Config::from_file(&config_path)?;
 
@@ -56,37 +57,65 @@ fn main() -> Result<()> {
         None => Store::new_in_memory()?,
     };
 
-    let http_client = reqwest::Client::new();
+    let http_client = Arc::new(reqwest::Client::new());
 
     // Scrape the given url for listings, filtering out what's been already seen.
+    // Then fetch all the listing pages, sending their readers over the channel.
 
     let resp = http_client.get(&cfg.craigslist.url).send()?;
     let doc = Document::from_read(resp)?;
 
-    let urls: Vec<_> = doc.find(Class("hdrlnk"))
+    let (tx, rx) = channel::unbounded();
+
+    doc.find(Class("hdrlnk"))
         .filter_map(|tag| tag.attr("href"))
+        .filter(|url| !store.exists(url))
+        .for_each(|url| {
+            let http_client = Arc::clone(&http_client);
+            let tx = tx.clone();
+            let url = url.to_string();
+
+            thread::spawn(move || {
+                if let Ok(resp) = http_client.get(&url).send() {
+                    tx.send(resp);
+                }
+            });
+        });
+
+    drop(tx);
+
+    // Scrape the web pages for listings.
+
+    let pages: Vec<_> = rx.collect();
+    let listings: Vec<_> = pages
+        .into_par_iter()
+        .filter_map(|r| Listing::from_read(r).ok())
         .collect();
 
-    let mut listings: Vec<_> = urls.par_iter()
-        .filter(|url| store.save(url).is_ok())
-        .filter_map(|url| Listing::from_url(&url, &http_client).ok())
+    // Send the listings to telegram, saving the ones that have
+    // been succesfully transmitted.
+
+    let tel_client = Arc::new(telegram::Client::new(
+        &cfg.telegram.token,
+        cfg.telegram.chat_id,
+    ));
+
+    let handles: Vec<_> = listings
+        .into_iter()
+        .map(|listing| {
+            let tel_client = Arc::clone(&tel_client);
+
+            thread::spawn(move || {
+                if listing.post(&tel_client) {
+                    println!("{}", listing.pprint());
+                }
+            })
+        })
         .collect();
-    listings.truncate(cfg.craigslist.limit);
 
-    // Post any new listings to telegram.
-
-    if listings.is_empty() {
-        println!("No new listings found.");
-        return Ok(());
+    for h in handles {
+        h.join().unwrap();
     }
-
-    let tel_client = telegram::Client::new(&cfg.telegram.token, cfg.telegram.chat_id);
-
-    println!("Found {} new listings:\n", listings.len());
-    listings.par_iter().for_each(|listing| {
-        listing.post(&tel_client);
-        println!("{}\n", listing.pprint());
-    });
 
     Ok(())
 }
