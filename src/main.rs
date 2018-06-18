@@ -9,12 +9,14 @@ extern crate serde_derive;
 #[macro_use]
 extern crate nom;
 extern crate clap;
+extern crate rayon;
 extern crate reqwest;
 extern crate rusqlite;
 extern crate select;
 extern crate toml;
 
 use clap::{App, Arg};
+use rayon::prelude::*;
 use select::document::Document;
 use select::predicate::Class;
 
@@ -50,28 +52,24 @@ fn main() -> Result<()> {
     };
 
     let http_client = reqwest::Client::new();
-
-    // Obtain the listings for the most recent listings.
-    // Filter out what's already been seen.
-
-    let resp = http_client.get(&cfg.craigslist.url).send()?;
-    let doc = Document::from_read(resp)?;
-
-    let listings: Vec<_> = doc.find(Class("hdrlnk"))
-        .filter_map(|tag| tag.attr("href"))
-        .filter(|url| !store.exists(url))
-        .filter_map(|url| http_client.get(url).send().ok())
-        .filter_map(move |reader| Listing::from_read(reader).ok())
-        .collect();
-
-    // Save and post the listings.
-
     let tel_client = telegram::Client::new(&cfg.telegram.token, cfg.telegram.chat_id);
 
-    let num_posted = listings
-        .iter()
+    // Obtain the listings for the most recent listings.
+    // Filter out what's already been seen and saving listings
+    // that are succesfully posted.
+
+    let root_page = http_client.get(&cfg.craigslist.url).send()?;
+
+    let num_posted = Document::from_read(root_page)?
+        .find(Class("hdrlnk"))
+        .flat_map(|tag| tag.attr("href"))
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .filter(|url| !store.exists(url))
+        .flat_map(|url| http_client.get(url).send())
+        .flat_map(move |reader| Listing::from_read(reader))
         .filter(|listing| listing.post(&tel_client))
-        .filter_map(|listing| store.save(&listing.url).ok())
+        .flat_map(|listing| store.save(&listing.url))
         .count();
 
     tel_client.send_message(&format!("Found {} listings!", num_posted), true);

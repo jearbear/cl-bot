@@ -105,14 +105,4 @@ impl Listing {
             false,
         )
     }
-
-    // pub fn pprint(&self) -> String {
-    //     format!(
-    //         "${price} - {title}\nLocated in {location}\n{url}",
-    //         price = self.price,
-    //         title = self.title,
-    //         location = self.location,
-    //         url = self.url,
-    //     )
-    // }
 }
