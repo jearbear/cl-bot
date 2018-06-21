@@ -67,7 +67,7 @@ fn main() -> Result<()> {
         .into_par_iter()
         .filter(|url| !store.exists(url))
         .flat_map(|url| http_client.get(url).send())
-        .flat_map(move |reader| Listing::from_read(reader))
+        .flat_map(|reader| Listing::from_read(reader))
         .filter(|listing| listing.post(&tel_client))
         .flat_map(|listing| store.save(&listing.url))
         .count();
