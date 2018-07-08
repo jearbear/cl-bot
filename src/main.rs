@@ -72,7 +72,9 @@ fn main() -> Result<()> {
         .flat_map(|listing| store.save(&listing.url))
         .count();
 
-    tel_client.send_message(&format!("Found {} listings!", num_posted), true);
+    if num_posted > 0 {
+        tel_client.send_message(&format!("Found {} listings!", num_posted), true);
+    }
 
     Ok(())
 }
