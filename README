@@ -1,0 +1,13 @@
+cl-bot - A handy utility to help you keep on top of Craigslist listings
+
+USAGE:
+    cl-bot [OPTIONS] <config>
+    
+FLAGS:
+    -h, --help    Prints help information
+    
+OPTIONS:
+        --store <store>    The location of the store used to keep track of seen listings
+        
+ARGS:
+    <config>    The location of the config file to read
