@@ -4,12 +4,14 @@ version = "0.1.0"
 authors = ["Jerry Tegno <jerrytegno@gmail.com>"]
 
 [dependencies]
-clap = "2.31"
-nom = "4.0"
-rayon = "1.0"
-reqwest = "0.8"
-rusqlite = { version = "0.13", features = ["bundled"] }
-select = "0.4"
-serde = "1.0"
-serde_derive = "1.0"
-toml = "0.4"
+clap = "2.32.0"
+failure = "0.1.2"
+nom = "4.0.0"
+rayon = "1.0.2"
+reqwest = "0.8.7"
+rusqlite = { version = "0.13.0", features = ["bundled"] }
+select = "0.4.2"
+serde = "1.0.71"
+serde_derive = "1.0.71"
+structopt = "0.2.10"
+toml = "0.4.6"

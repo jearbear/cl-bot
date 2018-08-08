@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::str;
 use std::str::FromStr;
 
@@ -6,25 +7,24 @@ use nom::types::CompleteStr;
 use select::document::Document;
 use select::predicate::{Attr, Class, Name};
 
-use std::io::Read;
-
 use telegram;
-use types::Result;
+use types::*;
 
-named!(loc_parser(CompleteStr) -> CompleteStr,
-   do_parse!(
-       many0!(is_not!("(")) >>
-       char!('(')           >>
-       loc: is_not!(")")    >>
-       char!(')')           >>
-       (loc)
+named!(
+    loc_parser(CompleteStr) -> CompleteStr,
+    do_parse!(
+        many0!(is_not!("(")) >>
+        char!('(')           >>
+        loc: is_not!(")")    >>
+        char!(')')           >>
+        (loc)
     )
 );
 
 fn get_loc(input: &str) -> Result<String> {
     match loc_parser(CompleteStr(input)) {
         Ok((_, parsed)) => Ok(parsed.to_string()),
-        Err(_) => Err("couldn't parse location".to_string())?,
+        Err(_) => bail!("couldn't parse location"),
     }
 }
 
@@ -36,7 +36,24 @@ named!(
 fn get_price(input: &str) -> Result<u32> {
     match price_parser(CompleteStr(input)) {
         Ok((_, parsed)) => Ok(parsed),
-        Err(_) => Err("couldn't parse price".to_string())?,
+        Err(_) => bail!("couldn't parse price"),
+    }
+}
+
+named!(
+    region_parser(CompleteStr) -> CompleteStr,
+    do_parse!(
+        tag!("https://")     >>
+        region: is_not!(".") >>
+        char!('.')           >>
+        (region)
+    )
+);
+
+pub fn get_region(input: &str) -> Result<String> {
+    match region_parser(CompleteStr(input)) {
+        Ok((_, parsed)) => Ok(parsed.to_string()),
+        Err(_) => bail!("couldn't parse region from url"),
     }
 }
 
@@ -53,35 +70,44 @@ impl Listing {
     pub fn from_read<R: Read>(reader: R) -> Result<Listing> {
         let doc = Document::from_read(reader)?;
 
-        let url = doc.find(Attr("rel", "canonical"))
+        let url = doc
+            .find(Attr("rel", "canonical"))
             .next()
-            .ok_or("url not found")?
+            .ok_or(format_err!("url not found"))?
             .attr("href")
-            .ok_or("url not found")?;
+            .ok_or(format_err!("url not found"))?;
 
-        let raw_price = doc.find(Class("price"))
+        let raw_price = doc
+            .find(Class("price"))
             .next()
-            .ok_or("price not found")?
+            .ok_or(format_err!("price not found"))?
             .text();
         let price = get_price(&raw_price)?;
 
-        let title = doc.find(Attr("id", "titletextonly"))
+        let title = doc
+            .find(Attr("id", "titletextonly"))
             .next()
-            .ok_or("name not found")?
+            .ok_or(format_err!("name not found"))?
             .text();
 
-        let raw_loc = doc.find(Name("small"))
+        let raw_loc = doc
+            .find(Name("small"))
             .next()
-            .ok_or("location not found")?
+            .ok_or(format_err!("location not found"))?
             .text();
         let location = get_loc(&raw_loc)?;
 
-        let map = doc.find(Attr("id", "map")).next().ok_or("map not found")?;
-        let lat = map.attr("data-latitude")
-            .ok_or("latitude not found")?
+        let map = doc
+            .find(Attr("id", "map"))
+            .next()
+            .ok_or(format_err!("map not found"))?;
+        let lat = map
+            .attr("data-latitude")
+            .ok_or(format_err!("latitude not found"))?
             .parse()?;
-        let lon = map.attr("data-longitude")
-            .ok_or("longitude not found")?
+        let lon = map
+            .attr("data-longitude")
+            .ok_or(format_err!("longitude not found"))?
             .parse()?;
 
         Ok(Listing {

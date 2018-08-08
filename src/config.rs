@@ -1,9 +1,30 @@
 use std::fs::File;
-use std::io::prelude::*;
+use std::io::Read;
 
+use structopt::clap::AppSettings;
 use toml;
 
-use types::Result;
+use types::*;
+
+#[derive(StructOpt, Debug)]
+#[structopt(
+    name = "cl-bot - A handy utility to help you keep on top of Craigslist listings",
+    about = "",
+    author = "",
+    version = "",
+    raw(global_setting = "AppSettings::DisableVersion")
+)]
+pub struct Opt {
+    #[structopt(name = "config", help = "The location of the config file to read")]
+    pub config: String,
+
+    #[structopt(
+        name = "store",
+        help = "The location of the store used to keep track of seen listings",
+        long = "store"
+    )]
+    pub store: Option<String>,
+}
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -16,8 +37,8 @@ impl Config {
         let mut f = File::open(path)?;
         let mut contents = String::new();
         f.read_to_string(&mut contents)?;
-
         let cfg: Config = toml::from_str(&contents)?;
+
         Ok(cfg)
     }
 }
