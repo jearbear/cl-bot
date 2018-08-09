@@ -21,11 +21,11 @@ mod types;
 
 use rayon::prelude::*;
 use select::document::Document;
-use select::predicate::Class;
+use select::predicate::{Class, Or};
 use structopt::StructOpt;
 
 use config::{Config, Opt};
-use listing::{get_region, Listing};
+use listing::Listing;
 use store::Store;
 use types::*;
 
@@ -40,15 +40,14 @@ fn do_main(args: Opt) -> Result<()> {
     let http_client = reqwest::Client::new();
     let tel_client = telegram::Client::new(&cfg.telegram.token, cfg.telegram.chat_id);
 
-    let root_region = get_region(&cfg.craigslist.url)?;
     let root_page = http_client.get(&cfg.craigslist.url).send()?;
 
     let num_posted = Document::from_read(root_page)?
-        .find(Class("hdrlnk"))
+        .find(Or(Class("hdrlnk"), Class("bantext")))
+        .take_while(|tag| tag.name() == Some("a"))
         .flat_map(|tag| tag.attr("href"))
         .collect::<Vec<_>>()
         .into_par_iter()
-        .filter(|url| get_region(url).map(|r| root_region == r).unwrap_or(false))
         .filter(|url| !store.exists(url))
         .flat_map(|url| http_client.get(url).send())
         .flat_map(Listing::from_read)

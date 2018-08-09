@@ -40,23 +40,6 @@ fn get_price(input: &str) -> Result<u32> {
     }
 }
 
-named!(
-    region_parser(CompleteStr) -> CompleteStr,
-    do_parse!(
-        tag!("https://")     >>
-        region: is_not!(".") >>
-        char!('.')           >>
-        (region)
-    )
-);
-
-pub fn get_region(input: &str) -> Result<String> {
-    match region_parser(CompleteStr(input)) {
-        Ok((_, parsed)) => Ok(parsed.to_string()),
-        Err(_) => bail!("couldn't parse region from url"),
-    }
-}
-
 #[derive(Debug)]
 pub struct Listing {
     pub url: String,
