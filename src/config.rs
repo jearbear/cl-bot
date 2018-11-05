@@ -1,7 +1,9 @@
 use std::fs::File;
 use std::io::Read;
 
+use serde_derive::Deserialize;
 use structopt::clap::AppSettings;
+use structopt::StructOpt;
 use toml;
 
 use types::*;
@@ -15,7 +17,10 @@ use types::*;
     raw(global_setting = "AppSettings::DisableVersion")
 )]
 pub struct Opt {
-    #[structopt(name = "config", help = "The location of the config file to read")]
+    #[structopt(
+        name = "config",
+        help = "The location of the config file to read"
+    )]
     pub config: String,
 
     #[structopt(
@@ -28,8 +33,9 @@ pub struct Opt {
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
-    pub craigslist: CraigslistConfig,
     pub telegram: TelegramConfig,
+    #[serde(rename = "searches")]
+    pub searches: Vec<SearchConfig>,
 }
 
 impl Config {
@@ -44,9 +50,9 @@ impl Config {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct CraigslistConfig {
+pub struct SearchConfig {
     pub url: String,
-    pub limit: usize,
+    // pub limit: usize,
 }
 
 #[derive(Deserialize, Debug)]

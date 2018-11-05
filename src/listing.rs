@@ -2,8 +2,9 @@ use std::io::Read;
 use std::str;
 use std::str::FromStr;
 
-use nom::digit;
+use failure::{bail, format_err};
 use nom::types::CompleteStr;
+use nom::*;
 use select::document::Document;
 use select::predicate::{Attr, Class, Name};
 

@@ -1,4 +1,4 @@
-use rusqlite::Connection;
+use rusqlite::{Connection, NO_PARAMS};
 
 use std::sync::Mutex;
 
@@ -13,7 +13,7 @@ impl Store {
         let conn = Connection::open(path)?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS listings (id TEXT PRIMARY KEY);",
-            &[],
+            NO_PARAMS,
         )?;
         Ok(Store {
             conn: Mutex::new(conn),
@@ -24,7 +24,7 @@ impl Store {
         let conn = Connection::open_in_memory()?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS listings (id TEXT PRIMARY KEY);",
-            &[],
+            NO_PARAMS,
         )?;
         Ok(Store {
             conn: Mutex::new(conn),
