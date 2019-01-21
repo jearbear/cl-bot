@@ -1,37 +1,45 @@
 use std::fs::File;
 use std::io::Read;
 
+use clap::{App, AppSettings, Arg};
 use serde_derive::Deserialize;
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
 use toml;
 
-use types::*;
+use crate::store::Store;
+use crate::types::*;
 
-#[derive(StructOpt, Debug)]
-#[structopt(
-    name = "cl-bot - A handy utility to help you keep on top of Craigslist listings",
-    about = "",
-    author = "",
-    version = "",
-    raw(global_setting = "AppSettings::DisableVersion")
-)]
-pub struct Opt {
-    #[structopt(
-        name = "config",
-        help = "The location of the config file to read"
-    )]
-    pub config: String,
-
-    #[structopt(
-        name = "store",
-        help = "The location of the store used to keep track of seen listings",
-        long = "store"
-    )]
-    pub store: Option<String>,
+pub struct Args {
+    pub config: Config,
+    pub store: Store,
 }
 
-#[derive(Deserialize, Debug)]
+impl Args {
+    pub fn init() -> Result<Args> {
+        let config_path = Arg::with_name("config")
+            .help("The location of the config file to read")
+            .required(true);
+        let store_path = Arg::with_name("store")
+            .help("The location of the store used to keep track of seen listings")
+            .long("store")
+            .takes_value(true);
+
+        let matches = App::new("cl-bot - A utility to help you keep on top of Craigslist listings")
+            .arg(&config_path)
+            .arg(&store_path)
+            .global_setting(AppSettings::DisableVersion)
+            .get_matches();
+
+        let config = Config::from_file(matches.value_of("config").unwrap())?;
+        let store = matches
+            .value_of("store")
+            .map(Store::new)
+            .unwrap_or_else(Store::new_in_memory)?;
+
+        Ok(Args { config, store })
+    }
+}
+
+#[derive(Deserialize)]
 pub struct Config {
     pub telegram: TelegramConfig,
     #[serde(rename = "searches")]
@@ -49,13 +57,12 @@ impl Config {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct SearchConfig {
     pub url: String,
-    // pub limit: usize,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct TelegramConfig {
     pub token: String,
     pub chat_id: i64,

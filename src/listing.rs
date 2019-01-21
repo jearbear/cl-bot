@@ -1,44 +1,26 @@
 use std::io::Read;
-use std::str;
-use std::str::FromStr;
 
-use failure::{bail, format_err};
-use nom::types::CompleteStr;
-use nom::*;
+use lazy_static::lazy_static;
+use regex::Regex;
 use select::document::Document;
 use select::predicate::{Attr, Class, Name};
 
-use telegram;
-use types::*;
+use crate::telegram;
 
-named!(
-    loc_parser(CompleteStr) -> CompleteStr,
-    do_parse!(
-        many0!(is_not!("(")) >>
-        char!('(')           >>
-        loc: is_not!(")")    >>
-        char!(')')           >>
-        (loc)
-    )
-);
-
-fn get_loc(input: &str) -> Result<String> {
-    match loc_parser(CompleteStr(input)) {
-        Ok((_, parsed)) => Ok(parsed.to_string()),
-        Err(_) => bail!("couldn't parse location"),
+fn get_loc(input: &str) -> Option<&str> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"\((.*)\)").unwrap();
     }
+
+    Some(RE.captures(input)?.get(1)?.as_str())
 }
 
-named!(
-    price_parser(CompleteStr) -> u32,
-    map_res!(preceded!(char!('$'), digit), |x: CompleteStr| {FromStr::from_str(&x)})
-);
-
-fn get_price(input: &str) -> Result<u32> {
-    match price_parser(CompleteStr(input)) {
-        Ok((_, parsed)) => Ok(parsed),
-        Err(_) => bail!("couldn't parse price"),
+fn get_price(input: &str) -> Option<u32> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"\$(\d+)").unwrap();
     }
+
+    Some(RE.captures(input)?.get(1)?.as_str().parse().ok()?)
 }
 
 #[derive(Debug)]
@@ -51,68 +33,39 @@ pub struct Listing {
 }
 
 impl Listing {
-    pub fn from_read<R: Read>(reader: R) -> Result<Listing> {
-        let doc = Document::from_read(reader)?;
+    pub fn from_read<R: Read>(reader: R) -> Option<Listing> {
+        let doc = Document::from_read(reader).ok()?;
 
-        let url = doc
-            .find(Attr("rel", "canonical"))
-            .next()
-            .ok_or(format_err!("url not found"))?
-            .attr("href")
-            .ok_or(format_err!("url not found"))?;
+        let url = doc.find(Attr("rel", "canonical")).next()?.attr("href")?;
 
-        let raw_price = doc
-            .find(Class("price"))
-            .next()
-            .ok_or(format_err!("price not found"))?
-            .text();
+        let raw_price = doc.find(Class("price")).next()?.text();
         let price = get_price(&raw_price)?;
 
-        let title = doc
-            .find(Attr("id", "titletextonly"))
-            .next()
-            .ok_or(format_err!("name not found"))?
-            .text();
+        let title = doc.find(Attr("id", "titletextonly")).next()?.text();
 
-        let raw_loc = doc
-            .find(Name("small"))
-            .next()
-            .ok_or(format_err!("location not found"))?
-            .text();
+        let raw_loc = doc.find(Name("small")).next()?.text();
         let location = get_loc(&raw_loc)?;
 
-        let map = doc
-            .find(Attr("id", "map"))
-            .next()
-            .ok_or(format_err!("map not found"))?;
-        let lat = map
-            .attr("data-latitude")
-            .ok_or(format_err!("latitude not found"))?
-            .parse()?;
-        let lon = map
-            .attr("data-longitude")
-            .ok_or(format_err!("longitude not found"))?
-            .parse()?;
+        let map = doc.find(Attr("id", "map")).next()?;
+        let lat = map.attr("data-latitude")?.parse().ok()?;
+        let lon = map.attr("data-longitude")?.parse().ok()?;
 
-        Ok(Listing {
-            url: url.to_string(),
-            price: price,
-            title: title,
-            location: location,
+        Some(Listing {
+            url: url.to_owned(),
+            price,
+            title,
+            location: location.to_owned(),
             geo: (lat, lon),
         })
     }
 
     pub fn post(&self, client: &telegram::Client) -> bool {
-        client.send_message(
-            &format!(
-                "*${price}* - [{title}]({url})\nLocated in *{location}*",
-                price = self.price,
-                title = self.title,
-                url = self.url,
-                location = self.location
-            ),
-            false,
-        )
+        client.send_message(&format!(
+            "*${price}* - [{title}]({url})\nLocated in *{location}*",
+            price = self.price,
+            title = self.title,
+            url = self.url,
+            location = self.location
+        ))
     }
 }

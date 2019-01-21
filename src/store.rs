@@ -2,7 +2,7 @@ use rusqlite::{Connection, NO_PARAMS};
 
 use std::sync::Mutex;
 
-use types::*;
+use crate::types::*;
 
 pub struct Store {
     conn: Mutex<Connection>,

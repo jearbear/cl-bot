@@ -1,6 +1,3 @@
-use std::result;
+use std::{error, result};
 
-use failure;
-pub use failure::ResultExt;
-
-pub type Result<T> = result::Result<T, failure::Error>;
+pub type Result<T> = result::Result<T, Box<dyn error::Error>>;
