@@ -1,50 +1,55 @@
-mod config;
+mod arg;
+mod error;
 mod listing;
 mod store;
 mod telegram;
-mod types;
 
 use rayon::prelude::*;
 use select::document::Document;
 use select::predicate::{Class, Or};
 
-use crate::config::Args;
+use crate::arg::Args;
+use crate::error::*;
 use crate::listing::Listing;
-use crate::types::*;
 
-fn do_main(Args { config, store }: Args) -> Result<()> {
+fn do_main(
+    Args {
+        url,
+        store,
+        telegram,
+    }: Args
+) -> Result<()> {
     let http_client = reqwest::Client::new();
-    let tel_client = telegram::Client::new(&config.telegram.token, config.telegram.chat_id);
 
-    let mut num_posted = 0;
+    println!("Getting listings for `{}`...", &url);
+    let root_page = http_client.get(&url).send()?;
 
-    for search in &config.searches {
-        println!("Getting listings for `{}`...", search.url);
-        let root_page = http_client.get(&search.url).send()?;
-
-        num_posted += Document::from_read(root_page)?
-            .find(Or(Class("hdrlnk"), Class("bantext")))
-            .take_while(|tag| tag.name() == Some("a"))
-            .flat_map(|tag| tag.attr("href"))
-            .collect::<Vec<_>>()
-            .into_par_iter()
-            .filter(|url| !store.exists(url))
-            .flat_map(|url| http_client.get(url).send())
-            .flat_map(Listing::from_read)
-            .inspect(|listing| println!("Saving and posting new listing: {}", listing.title))
-            .filter(|listing| listing.post(&tel_client))
-            .flat_map(|listing| store.save(&listing.url))
-            .count();
-    }
-
-    println!(
-        "Found {} listings across {} searches",
-        num_posted,
-        config.searches.len()
-    );
+    let num_posted = Document::from_read(root_page)?
+        .find(Or(Class("hdrlnk"), Class("bantext")))
+        .take_while(|tag| tag.name() == Some("a"))
+        .flat_map(|tag| tag.attr("href"))
+        .collect::<Vec<_>>()
+        .into_par_iter()
+        .filter(|url| match &store {
+            Some(store) => !store.exists(url),
+            None => true,
+        })
+        .flat_map(|url| http_client.get(url).send())
+        .flat_map(Listing::from_read)
+        .inspect(|listing| println!("Found new listing: {}", listing.title))
+        .filter(|listing| match &telegram {
+            Some(tel) => listing.post(&tel),
+            None => true,
+        })
+        .flat_map(|listing| match &store {
+            Some(store) => store.save(&listing.url),
+            None => Ok(()),
+        })
+        .count();
 
     if num_posted > 0 {
-        tel_client.send_message(&format!("Found {} listings!", num_posted));
+        println!("Found {} listings", num_posted);
+        telegram.map(|t| t.send_message(&format!("Found {} listings!", num_posted)));
     }
 
     Ok(())

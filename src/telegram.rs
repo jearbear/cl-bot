@@ -1,30 +1,48 @@
 use reqwest;
 
+use crate::error::Result;
+
 pub struct Client {
     http_client: reqwest::Client,
     base_url: String,
-    chat_id: i64,
+    chat_id: String,
 }
 
 impl Client {
-    pub fn new(token: &str, chat_id: i64) -> Client {
-        Client {
+    pub fn new(token: &str, chat_id: &str) -> Result<Client> {
+        let client = Client {
             http_client: reqwest::Client::new(),
-            base_url: format!("https://api.telegram.org/bot{}/sendMessage", token),
-            chat_id,
+            base_url: format!("https://api.telegram.org/bot{}", token),
+            chat_id: chat_id.to_string(),
+        };
+
+        if client.ping() {
+            Ok(client)
+        } else {
+            Err("Couldn't connect to telegram API".into())
         }
+    }
+
+    fn ping(&self) -> bool {
+        self.http_client
+            .get(&format!("{}/getChat", self.base_url))
+            .form(&[("chat_id", &self.chat_id)])
+            .send()
+            .map(|s| s.status().is_success())
+            .unwrap_or(false)
     }
 
     pub fn send_message(&self, msg: &str) -> bool {
         self.http_client
-            .post(&self.base_url)
+            .post(&format!("{}/sendMessage", self.base_url))
             .form(&[
-                ("chat_id", self.chat_id.to_string().as_str()),
+                ("chat_id", self.chat_id.as_ref()),
                 ("parse_mode", "Markdown"),
                 ("text", msg),
                 ("disable_notification", "true"),
             ])
             .send()
-            .is_ok()
+            .map(|s| s.status().is_success())
+            .unwrap_or(false)
     }
 }
