@@ -1,13 +1,13 @@
-cl-bot - A handy utility to help you keep on top of Craigslist listings
+cl-fetch - A utility to collect craigslist listings
 
 USAGE:
-    cl-bot [OPTIONS] <config>
-    
+    cl-fetch [OPTIONS] --url <url>
+
 FLAGS:
     -h, --help    Prints help information
-    
+
 OPTIONS:
-        --store <store>    The location of the store used to keep track of seen listings
-        
-ARGS:
-    <config>    The location of the config file to read
+        --store <store>                The location of the store used to keep track of seen listings
+        --tel-chat-id <tel-chat-id>    The ID of the telegram chat to post listings to
+        --tel-token <tel-token>        Your telegram bot API token
+        --url <url>                    The craigslist url to fetch
