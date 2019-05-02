@@ -9,7 +9,7 @@ use select::document::Document;
 use select::predicate::{Class, Or};
 
 use crate::arg::Args;
-use crate::error::*;
+use crate::error::Result;
 use crate::listing::Listing;
 
 fn do_main(
@@ -38,7 +38,7 @@ fn do_main(
         .flat_map(Listing::from_read)
         .inspect(|listing| println!("Found new listing: {}", listing.title))
         .filter(|listing| match &telegram {
-            Some(tel) => listing.post(&tel),
+            Some(tel) => tel.post(&listing),
             None => true,
         })
         .flat_map(|listing| match &store {
@@ -49,7 +49,6 @@ fn do_main(
 
     if num_posted > 0 {
         println!("Found {} listings", num_posted);
-        telegram.map(|t| t.send_message(&format!("Found {} listings!", num_posted)));
     }
 
     Ok(())

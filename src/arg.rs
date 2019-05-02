@@ -1,6 +1,6 @@
 use clap::{App, AppSettings, Arg, ArgGroup};
 
-use crate::error::*;
+use crate::error::Result;
 use crate::store::Store;
 use crate::telegram;
 

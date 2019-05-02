@@ -1,6 +1,7 @@
 use reqwest;
 
 use crate::error::Result;
+use crate::listing::Listing;
 
 pub struct Client {
     http_client: reqwest::Client,
@@ -32,13 +33,21 @@ impl Client {
             .unwrap_or(false)
     }
 
-    pub fn send_message(&self, msg: &str) -> bool {
+    pub fn post(&self, listing: &Listing) -> bool {
+        let msg = &format!(
+            "*${price}* - [{title}]({url})\nLocated in *{location}*",
+            price = listing.price,
+            title = listing.title,
+            url = listing.url,
+            location = listing.location
+        );
+
         self.http_client
             .post(&format!("{}/sendMessage", self.base_url))
             .form(&[
                 ("chat_id", self.chat_id.as_ref()),
                 ("parse_mode", "Markdown"),
-                ("text", msg),
+                ("text", &msg),
                 ("disable_notification", "true"),
             ])
             .send()
